@@ -14,9 +14,12 @@ import (
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/apijson"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/importpath"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/logging"
+	"github.com/cloudflare/terraform-provider-cloudflare/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+var tagsHelper = utils.NewTagsHelper(utils.TagScopeZone, "zone")
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.ResourceWithConfigure = (*ZoneResource)(nil)
@@ -64,6 +67,9 @@ func (r *ZoneResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	// Store the planned tags for later use
+	plannedTags := data.Tags
+
 	dataBytes, err := data.MarshalJSON()
 	if err != nil {
 		resp.Diagnostics.AddError("failed to serialize http request", err.Error())
@@ -103,6 +109,8 @@ func (r *ZoneResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	data.Tags = tagsHelper.SetTagsAfterCreate(ctx, r.client, &resp.Diagnostics, data.ID.ValueString(), data.ID.ValueString(), plannedTags)
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -122,6 +130,9 @@ func (r *ZoneResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Store planned tags for later comparison
+	plannedTags := data.Tags
 
 	if state.ID.IsNull() || state.ID.ValueString() == "" {
 		resp.Diagnostics.AddError(
@@ -176,6 +187,8 @@ func (r *ZoneResource) Update(ctx context.Context, req resource.UpdateRequest, r
 		)
 		return
 	}
+
+	data.Tags = tagsHelper.UpdateTagsIfChanged(ctx, r.client, &resp.Diagnostics, data.ID.ValueString(), data.ID.ValueString(), plannedTags, state.Tags)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -241,6 +254,8 @@ func (r *ZoneResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		)
 		return
 	}
+
+	data.Tags = tagsHelper.ReadTags(ctx, r.client, &resp.Diagnostics, data.ID.ValueString(), data.ID.ValueString())
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -332,6 +347,8 @@ func (r *ZoneResource) ImportState(ctx context.Context, req resource.ImportState
 		)
 		return
 	}
+
+	data.Tags = tagsHelper.ReadTags(ctx, r.client, &resp.Diagnostics, data.ID.ValueString(), data.ID.ValueString())
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

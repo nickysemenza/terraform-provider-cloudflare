@@ -21,6 +21,7 @@ type AccountModel struct {
 	ManagedBy customfield.NestedObject[AccountManagedByModel] `tfsdk:"managed_by" json:"managed_by,computed_optional"`
 	Settings  customfield.NestedObject[AccountSettingsModel]  `tfsdk:"settings" json:"settings,computed_optional"`
 	CreatedOn timetypes.RFC3339                               `tfsdk:"created_on" json:"created_on,computed" format:"date-time"`
+	Tags      *map[string]types.String                        `tfsdk:"tags" json:"-"`
 }
 
 func (m AccountModel) MarshalJSON() (data []byte, err error) {

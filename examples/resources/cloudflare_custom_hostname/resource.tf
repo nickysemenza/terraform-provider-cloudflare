@@ -71,4 +71,8 @@ resource "cloudflare_custom_hostname" "example_custom_hostname" {
   custom_metadata = {
     foo = "string"
   }
+  tags = {
+    environment = "production"
+    team        = "web-platform"
+  }
 }

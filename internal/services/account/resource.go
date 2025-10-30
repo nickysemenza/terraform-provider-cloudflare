@@ -13,9 +13,12 @@ import (
 	"github.com/cloudflare/cloudflare-go/v6/option"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/importpath"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/logging"
+	"github.com/cloudflare/terraform-provider-cloudflare/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+var tagsHelper = utils.NewTagsHelper(utils.TagScopeAccount, "account")
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.ResourceWithConfigure = (*AccountResource)(nil)
@@ -63,6 +66,9 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	// Store the planned tags for later use
+	plannedTags := data.Tags
+
 	dataBytes, err := data.marshalCustom()
 	if err != nil {
 		resp.Diagnostics.AddError("failed to serialize http request", err.Error())
@@ -87,6 +93,8 @@ func (r *AccountResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
+	data.Tags = tagsHelper.SetTagsAfterCreate(ctx, r.client, &resp.Diagnostics, data.ID.ValueString(), data.ID.ValueString(), plannedTags)
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -106,6 +114,9 @@ func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Store planned tags for later comparison
+	plannedTags := data.Tags
 
 	dataBytes, err := data.marshalCustomForUpdate(*state)
 	if err != nil {
@@ -132,6 +143,8 @@ func (r *AccountResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+
+	data.Tags = tagsHelper.UpdateTagsIfChanged(ctx, r.client, &resp.Diagnostics, data.ID.ValueString(), data.ID.ValueString(), plannedTags, state.Tags)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -169,6 +182,8 @@ func (r *AccountResource) Read(ctx context.Context, req resource.ReadRequest, re
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+
+	data.Tags = tagsHelper.ReadTags(ctx, r.client, &resp.Diagnostics, data.ID.ValueString(), data.ID.ValueString())
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -232,6 +247,8 @@ func (r *AccountResource) ImportState(ctx context.Context, req resource.ImportSt
 		resp.Diagnostics.AddError("failed to deserialize http request", err.Error())
 		return
 	}
+
+	data.Tags = tagsHelper.ReadTags(ctx, r.client, &resp.Diagnostics, path, path)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

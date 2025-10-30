@@ -14,9 +14,12 @@ import (
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/apijson"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/importpath"
 	"github.com/cloudflare/terraform-provider-cloudflare/internal/logging"
+	"github.com/cloudflare/terraform-provider-cloudflare/internal/utils"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+var tagsHelper = utils.NewTagsHelper(utils.TagScopeZone, "custom_hostname")
 
 // Ensure provider defined types fully satisfy framework interfaces.
 var _ resource.ResourceWithConfigure = (*CustomHostnameResource)(nil)
@@ -64,6 +67,9 @@ func (r *CustomHostnameResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
+	// Store the planned tags for later use
+	plannedTags := data.Tags
+
 	dataBytes, err := data.MarshalJSON()
 	if err != nil {
 		resp.Diagnostics.AddError("failed to serialize http request", err.Error())
@@ -92,6 +98,8 @@ func (r *CustomHostnameResource) Create(ctx context.Context, req resource.Create
 	}
 	data = &env.Result
 
+	data.Tags = tagsHelper.SetTagsAfterCreate(ctx, r.client, &resp.Diagnostics, data.ZoneID.ValueString(), data.ID.ValueString(), plannedTags)
+
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -111,6 +119,9 @@ func (r *CustomHostnameResource) Update(ctx context.Context, req resource.Update
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Store planned tags for later comparison
+	plannedTags := data.Tags
 
 	dataBytes, err := data.MarshalJSONForUpdate(*state)
 	if err != nil {
@@ -140,6 +151,8 @@ func (r *CustomHostnameResource) Update(ctx context.Context, req resource.Update
 		return
 	}
 	data = &env.Result
+
+	data.Tags = tagsHelper.UpdateTagsIfChanged(ctx, r.client, &resp.Diagnostics, data.ZoneID.ValueString(), data.ID.ValueString(), plannedTags, state.Tags)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -180,6 +193,8 @@ func (r *CustomHostnameResource) Read(ctx context.Context, req resource.ReadRequ
 		return
 	}
 	data = &env.Result
+
+	data.Tags = tagsHelper.ReadTags(ctx, r.client, &resp.Diagnostics, data.ZoneID.ValueString(), data.ID.ValueString())
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -250,6 +265,8 @@ func (r *CustomHostnameResource) ImportState(ctx context.Context, req resource.I
 		return
 	}
 	data = &env.Result
+
+	data.Tags = tagsHelper.ReadTags(ctx, r.client, &resp.Diagnostics, path_zone_id, path_custom_hostname_id)
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
